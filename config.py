@@ -40,7 +40,7 @@ def agrupar_e_ordenar_dados(df):
         by='nota', ascending=False)
 
     top_10_maiores_notas = municipios_ordenados.head(10)
-    top_10_menores_notas = municipios_ordenados.tail(10)
+    top_10_menores_notas = municipios_ordenados.tail(10).sort_values(by='nota', ascending=True)
 
     return (top_10_maiores_notas, top_10_menores_notas)
 
@@ -58,7 +58,7 @@ def gerar_graficos(app, top_10_maiores_notas, top_10_menores_notas):
                          color='NO_MUNICIPIO_ESC')
 
     app.layout = html.Div([
-        html.H1("Dashboard de Notas ENEM por Município"),
+        html.H1("Dashboard Notas do ENEM por Município"),
         html.Div([
             dcc.Graph(figure=fig_maiores)
         ]),
