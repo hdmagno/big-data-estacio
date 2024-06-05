@@ -1,18 +1,13 @@
 import dash
 
-from config import preparar_dados, exibir_dados
+from config import exibir_dashboard
 
 
 def main():
 
     app = dash.Dash(__name__)
-    
-    x = input("Preparar dados? [s/n] ")
-    
-    if x == "s":
-        preparar_dados()
         
-    exibir_dados(app)
+    exibir_dashboard(app)
     
     app.run_server(debug=True)
 
