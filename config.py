@@ -1,14 +1,20 @@
-import pandas as pd
 import sqlite3
+import pandas as pd
+from dash import dcc, html
+import plotly.express as px
 
 from models.Estudante import CorRaca, Escola, FaixaEtaria, CriarEstudanteDTO
 
 
-def criar_banco_de_dados() -> None:
-    conexao = sqlite3.connect("./data/enem.db")
+def conectar_banco_de_dados():
+    return sqlite3.connect("./data/enem.db")
+
+
+def criar_tabelas():
+    conexao = conectar_banco_de_dados()
     cursor = conexao.cursor()
 
-    criar_tabela = """
+    sql = """
         CREATE TABLE IF NOT EXISTS estudantes
         (id INTEGER,
         inscricao TEXT,
@@ -27,12 +33,12 @@ def criar_banco_de_dados() -> None:
         PRIMARY KEY (id))
     """
 
-    cursor.execute(criar_tabela)
+    cursor.execute(sql)
     conexao.commit()
     conexao.close()
 
 
-def ler_csv() -> pd.DataFrame:
+def ler_csv():
     colunas_desejadas = [
         "NU_INSCRICAO",
         "TP_FAIXA_ETARIA",
@@ -67,8 +73,8 @@ def ler_csv() -> pd.DataFrame:
     return dados_selecionados
 
 
-def gerar_lista_estudantes(dados_csv: pd.DataFrame) -> list[CriarEstudanteDTO]:
-    estudantes: list[CriarEstudanteDTO] = []
+def gerar_lista_estudantes(dados_csv):
+    estudantes = []
 
     for _, row in dados_csv.iterrows():
         estudante_csv = {
@@ -93,11 +99,11 @@ def gerar_lista_estudantes(dados_csv: pd.DataFrame) -> list[CriarEstudanteDTO]:
     return estudantes
 
 
-def salvar_no_banco_de_dados(estudantes: list[CriarEstudanteDTO]) -> None:
-    conexao = sqlite3.connect("./data/enem.db")
+def salvar_no_banco_de_dados(estudantes):
+    conexao = conectar_banco_de_dados()
     cursor = conexao.cursor()
 
-    inserir_registros = """
+    sql = """
         INSERT INTO estudantes (
             inscricao,
             faixa_etaria,
@@ -133,8 +139,69 @@ def salvar_no_banco_de_dados(estudantes: list[CriarEstudanteDTO]) -> None:
         for estudante in estudantes
     ]
 
-    cursor.executemany(inserir_registros, valores)
+    cursor.executemany(sql, valores)
     conexao.commit()
     conexao.close()
 
     print("Fim...")
+
+
+def preparar_dados():
+    criar_tabelas()
+    dadosCSV = ler_csv()
+    estudantes = gerar_lista_estudantes(dadosCSV)
+    salvar_no_banco_de_dados(estudantes)
+
+
+def acessar_banco_de_dados():
+    conexao = conectar_banco_de_dados()
+
+    sql = "SELECT municipio, nota_redacao, nota_matematica FROM estudantes"
+    df = pd.read_sql_query(sql, conexao)
+    conexao.close()
+
+    return df
+
+
+def agrupar_e_ordenar_dados(df):
+    df['nota'] = df['nota_redacao'] + df['nota_matematica']
+
+    media_notas_por_municipio = df.groupby(
+        'municipio')['nota'].mean().reset_index()
+
+    municipios_ordenados = media_notas_por_municipio.sort_values(
+        by='nota', ascending=False)
+
+    top_10_maiores_notas = municipios_ordenados.head(10)
+    top_10_menores_notas = municipios_ordenados.tail(10)
+
+    return (top_10_maiores_notas, top_10_menores_notas)
+
+
+def gerar_dashboard(app, top_10_maiores_notas, top_10_menores_notas):
+    fig_maiores = px.bar(top_10_maiores_notas, x='nota', y='municipio', orientation='h',
+                         title='Top 10 Municípios com Maiores Notas',
+                         labels={'nota': 'Nota Média',
+                                 'municipio': 'Município'},
+                         color='municipio')
+    fig_menores = px.bar(top_10_menores_notas, x='nota', y='municipio', orientation='h',
+                         title='Top 10 Municípios com Menores Notas',
+                         labels={'nota': 'Nota Média',
+                                 'municipio': 'Município'},
+                         color='municipio')
+
+    app.layout = html.Div([
+        html.H1("Dashboard de Notas ENEM por Município"),
+        html.Div([
+            dcc.Graph(figure=fig_maiores)
+        ]),
+        html.Div([
+            dcc.Graph(figure=fig_menores)
+        ])
+    ])
+
+
+def exibir_dados(app):
+    df = acessar_banco_de_dados()
+    top_10_maiores_notas, top_10_menores_notas = agrupar_e_ordenar_dados(df)
+    gerar_dashboard(app, top_10_maiores_notas, top_10_menores_notas)
